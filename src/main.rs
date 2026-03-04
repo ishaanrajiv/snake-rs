@@ -15,6 +15,8 @@ use crate::settings::{
 
 const PERF_SAMPLE_SECONDS: f32 = 1.0;
 const RESUME_COUNTDOWN_SECONDS: f32 = 3.0;
+const TARGET_RENDER_FPS: f64 = 300.0;
+const TARGET_FRAME_SECONDS: f64 = 1.0 / TARGET_RENDER_FPS;
 
 #[derive(Clone, Copy)]
 enum SessionState {
@@ -96,17 +98,15 @@ struct PerformanceOverlay {
     sample_start_time: f64,
     sample_frames: u32,
     fps_display: f32,
-    frame_ms_display: f32,
 }
 
 impl PerformanceOverlay {
     fn new(now: f64) -> Self {
         Self {
-            show_fps: true,
+            show_fps: false,
             sample_start_time: now,
             sample_frames: 0,
             fps_display: 0.0,
-            frame_ms_display: 0.0,
         }
     }
 
@@ -121,7 +121,6 @@ impl PerformanceOverlay {
         if sample_elapsed >= PERF_SAMPLE_SECONDS {
             let frames = self.sample_frames.max(1) as f32;
             self.fps_display = frames / sample_elapsed;
-            self.frame_ms_display = (sample_elapsed * 1000.0) / frames;
             self.sample_start_time = now;
             self.sample_frames = 0;
         }
@@ -370,13 +369,12 @@ fn draw_hud(
 
     let info = if performance.show_fps {
         format!(
-            "Score: {}    High: {}    Mode: {}{}    FPS: {:.0} ({:.1} ms)    Theme: {}",
+            "Score: {}    High: {}    Mode: {}{}    FPS: {:.0}    Theme: {}",
             game.score(),
             high_score,
             game.mode().label(),
             combo_text,
             performance.fps_display,
-            performance.frame_ms_display,
             theme_mode.label()
         )
     } else {
@@ -790,7 +788,7 @@ fn window_conf() -> Conf {
         window_height: 780,
         window_resizable: true,
         platform: macroquad::miniquad::conf::Platform {
-            swap_interval: Some(1),
+            swap_interval: Some(0),
             ..Default::default()
         },
         ..Default::default()
@@ -809,6 +807,8 @@ async fn main() {
     let mut accumulator = 0.0f32;
     let mut performance = PerformanceOverlay::new(get_time());
     let mut audio = AudioManager::load("assets/audio").await;
+    #[cfg(not(target_arch = "wasm32"))]
+    let mut frame_deadline = std::time::Instant::now();
 
     loop {
         if is_key_pressed(KeyCode::Escape) {
@@ -1021,6 +1021,17 @@ async fn main() {
 
         if settings_menu.open {
             draw_settings_overlay(&layout, &colors, &settings_menu, &settings);
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            frame_deadline += std::time::Duration::from_secs_f64(TARGET_FRAME_SECONDS);
+            let now = std::time::Instant::now();
+            if frame_deadline > now {
+                std::thread::sleep(frame_deadline - now);
+            } else {
+                frame_deadline = now;
+            }
         }
 
         next_frame().await;
