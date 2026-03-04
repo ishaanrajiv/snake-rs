@@ -110,3 +110,6 @@ cargo test
 - Debug binaries are placed under `target/debug/`
 - Release binaries are placed under `target/release/`
 
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
