@@ -6,3 +6,6 @@ edition = "2024"
 [dependencies]
 macroquad = "0.4"
 rand = "0.8"
+
+[patch.crates-io]
+miniquad = { path = "vendor/miniquad" }
