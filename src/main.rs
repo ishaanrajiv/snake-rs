@@ -1,6 +1,4 @@
 use std::collections::VecDeque;
-use std::thread;
-use std::time::Duration;
 
 use ::rand::Rng;
 use macroquad::prelude::*;
@@ -9,8 +7,6 @@ const GRID_WIDTH: i32 = 32;
 const GRID_HEIGHT: i32 = 22;
 const SNAKE_STEP_SECONDS: f32 = 0.11;
 const PERF_SAMPLE_SECONDS: f32 = 1.0;
-const DEFAULT_FPS_CAP: f64 = 240.0;
-const FRAME_BUDGET_SECONDS: f64 = 1.0 / DEFAULT_FPS_CAP;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Point {
@@ -681,8 +677,8 @@ fn window_conf() -> Conf {
         window_height: 780,
         window_resizable: true,
         platform: macroquad::miniquad::conf::Platform {
-            // Disable vsync for uncapped rendering throughput.
-            swap_interval: Some(0),
+            // Render every 2nd vblank (~half refresh rate).
+            swap_interval: Some(1),
             ..Default::default()
         },
         ..Default::default()
@@ -697,8 +693,6 @@ async fn main() {
     let mut performance = PerformanceOverlay::new(get_time());
 
     loop {
-        let frame_start = get_time();
-
         if is_key_pressed(KeyCode::Q) || is_key_pressed(KeyCode::Escape) {
             break;
         }
@@ -725,13 +719,6 @@ async fn main() {
         draw_hud(&game, &layout, &performance, theme_mode, &colors);
         draw_game(&game, &layout, step_progress, &colors);
         draw_overlay(&game, &layout, &colors);
-
-        let frame_elapsed = get_time() - frame_start;
-        if frame_elapsed < FRAME_BUDGET_SECONDS {
-            thread::sleep(Duration::from_secs_f64(
-                FRAME_BUDGET_SECONDS - frame_elapsed,
-            ));
-        }
 
         next_frame().await;
     }
