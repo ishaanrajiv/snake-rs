@@ -1,11 +1,15 @@
 use std::collections::VecDeque;
+use std::thread;
+use std::time::Duration;
 
 use ::rand::Rng;
 use macroquad::prelude::*;
 
 const GRID_WIDTH: i32 = 32;
 const GRID_HEIGHT: i32 = 22;
-const STEP_SECONDS: f32 = 0.11;
+const SNAKE_STEP_SECONDS: f32 = 0.11;
+const TARGET_FPS: f64 = 120.0;
+const TARGET_FRAME_SECONDS: f64 = 1.0 / TARGET_FPS;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Point {
@@ -312,7 +316,7 @@ fn draw_board(layout: &BoardLayout) {
 }
 
 fn draw_hud(game: &Game, layout: &BoardLayout) {
-    let title = "Pastel Snake";
+    let title = "Snake";
     let title_dim = measure_text(title, None, 54, 1.0);
     draw_text_ex(
         title,
@@ -466,6 +470,11 @@ fn window_conf() -> Conf {
         window_width: 1024,
         window_height: 780,
         window_resizable: true,
+        platform: macroquad::miniquad::conf::Platform {
+            // Disable vsync so the loop can run above 60 Hz on high-refresh displays.
+            swap_interval: Some(0),
+            ..Default::default()
+        },
         ..Default::default()
     }
 }
@@ -476,15 +485,17 @@ async fn main() {
     let mut accumulator = 0.0f32;
 
     loop {
+        let frame_start = get_time();
+
         if is_key_pressed(KeyCode::Q) || is_key_pressed(KeyCode::Escape) {
             break;
         }
 
         handle_input(&mut game);
         accumulator += get_frame_time();
-        while accumulator >= STEP_SECONDS {
+        while accumulator >= SNAKE_STEP_SECONDS {
             game.tick();
-            accumulator -= STEP_SECONDS;
+            accumulator -= SNAKE_STEP_SECONDS;
         }
 
         let layout = board_layout();
@@ -494,6 +505,10 @@ async fn main() {
         draw_game(&game, &layout);
         draw_overlay(&game, &layout);
 
+        let elapsed = get_time() - frame_start;
+        if elapsed < TARGET_FRAME_SECONDS {
+            thread::sleep(Duration::from_secs_f64(TARGET_FRAME_SECONDS - elapsed));
+        }
         next_frame().await;
     }
 }
