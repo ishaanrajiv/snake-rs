@@ -1,6 +1,4 @@
 use std::collections::VecDeque;
-use std::thread;
-use std::time::Duration;
 
 use ::rand::Rng;
 use macroquad::prelude::*;
@@ -8,8 +6,6 @@ use macroquad::prelude::*;
 const GRID_WIDTH: i32 = 32;
 const GRID_HEIGHT: i32 = 22;
 const SNAKE_STEP_SECONDS: f32 = 0.11;
-const TARGET_FPS: f64 = 120.0;
-const TARGET_FRAME_SECONDS: f64 = 1.0 / TARGET_FPS;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Point {
@@ -315,7 +311,44 @@ fn draw_board(layout: &BoardLayout) {
     }
 }
 
-fn draw_hud(game: &Game, layout: &BoardLayout) {
+fn lerp_f32(start: f32, end: f32, t: f32) -> f32 {
+    start + (end - start) * t
+}
+
+fn next_move_would_collide(game: &Game) -> bool {
+    if game.over {
+        return false;
+    }
+
+    let current_head = *game.snake.front().expect("snake always has a head");
+    let (dx, dy) = game.next_dir.delta();
+    let new_head = Point {
+        x: current_head.x + dx,
+        y: current_head.y + dy,
+    };
+
+    if new_head.x < 0
+        || new_head.y < 0
+        || new_head.x >= game.grid_width
+        || new_head.y >= game.grid_height
+    {
+        return true;
+    }
+
+    let growing = new_head == game.food;
+    let tail = *game.snake.back().expect("snake always has a tail");
+    game.snake.iter().any(|&segment| {
+        if segment != new_head {
+            return false;
+        }
+        if !growing && segment == tail {
+            return false;
+        }
+        true
+    })
+}
+
+fn draw_hud(game: &Game, layout: &BoardLayout, smoothed_fps: f32) {
     let title = "Snake";
     let title_dim = measure_text(title, None, 54, 1.0);
     draw_text_ex(
@@ -329,7 +362,7 @@ fn draw_hud(game: &Game, layout: &BoardLayout) {
         },
     );
 
-    let info = format!("Score: {}", game.score);
+    let info = format!("Score: {}    FPS: {:.0}", game.score, smoothed_fps);
     draw_text_ex(
         &info,
         layout.x,
@@ -353,7 +386,7 @@ fn draw_hud(game: &Game, layout: &BoardLayout) {
     );
 }
 
-fn draw_game(game: &Game, layout: &BoardLayout) {
+fn draw_game(game: &Game, layout: &BoardLayout, step_progress: f32) {
     let food_center_x = layout.x + game.food.x as f32 * layout.cell + layout.cell * 0.5;
     let food_center_y = layout.y + game.food.y as f32 * layout.cell + layout.cell * 0.5;
     let pulse = (get_time() as f32 * 4.0).sin() * 0.06 + 1.0;
@@ -371,29 +404,45 @@ fn draw_game(game: &Game, layout: &BoardLayout) {
         pastel(250, 144, 136),
     );
 
+    let segments: Vec<Point> = game.snake.iter().copied().collect();
     let body_start = pastel(168, 226, 198);
     let body_end = pastel(188, 170, 232);
-    let max_idx = (game.snake.len().saturating_sub(1)).max(1) as f32;
-    for (idx, segment) in game.snake.iter().enumerate().skip(1).rev() {
+    let max_idx = (segments.len().saturating_sub(1)).max(1) as f32;
+    let safe_progress = if next_move_would_collide(game) {
+        0.0
+    } else {
+        step_progress
+    };
+
+    for idx in (1..segments.len()).rev() {
+        let segment = segments[idx];
+        let target = segments[idx - 1];
+        let interp_x = lerp_f32(segment.x as f32, target.x as f32, safe_progress);
+        let interp_y = lerp_f32(segment.y as f32, target.y as f32, safe_progress);
         let t = idx as f32 / max_idx;
         let color = lerp_color(body_start, body_end, t);
         let inset = layout.cell * 0.12;
-        let x = layout.x + segment.x as f32 * layout.cell + inset;
-        let y = layout.y + segment.y as f32 * layout.cell + inset;
+        let x = layout.x + interp_x * layout.cell + inset;
+        let y = layout.y + interp_y * layout.cell + inset;
         let size = layout.cell - inset * 2.0;
         draw_rectangle(x, y, size, size, color);
     }
 
-    if let Some(head) = game.snake.front() {
+    if let Some(head) = segments.first().copied() {
+        let (dx, dy) = game.next_dir.delta();
+        let head_target_x = head.x as f32 + dx as f32;
+        let head_target_y = head.y as f32 + dy as f32;
+        let interp_head_x = lerp_f32(head.x as f32, head_target_x, safe_progress);
+        let interp_head_y = lerp_f32(head.y as f32, head_target_y, safe_progress);
         let inset = layout.cell * 0.09;
-        let x = layout.x + head.x as f32 * layout.cell + inset;
-        let y = layout.y + head.y as f32 * layout.cell + inset;
+        let x = layout.x + interp_head_x * layout.cell + inset;
+        let y = layout.y + interp_head_y * layout.cell + inset;
         let size = layout.cell - inset * 2.0;
         draw_rectangle(x, y, size, size, pastel(113, 196, 173));
 
         let eye_offset = layout.cell * 0.18;
         let eye_radius = layout.cell * 0.05;
-        let (ex1, ey1, ex2, ey2) = match game.dir {
+        let (ex1, ey1, ex2, ey2) = match game.next_dir {
             Direction::Up => (
                 x + eye_offset,
                 y + eye_offset,
@@ -471,8 +520,8 @@ fn window_conf() -> Conf {
         window_height: 780,
         window_resizable: true,
         platform: macroquad::miniquad::conf::Platform {
-            // Disable vsync so the loop can run above 60 Hz on high-refresh displays.
-            swap_interval: Some(0),
+            // Enable vsync so rendering follows the monitor refresh rate.
+            swap_interval: Some(1),
             ..Default::default()
         },
         ..Default::default()
@@ -483,10 +532,9 @@ fn window_conf() -> Conf {
 async fn main() {
     let mut game = Game::new(GRID_WIDTH, GRID_HEIGHT);
     let mut accumulator = 0.0f32;
+    let mut smoothed_fps = 60.0f32;
 
     loop {
-        let frame_start = get_time();
-
         if is_key_pressed(KeyCode::Q) || is_key_pressed(KeyCode::Escape) {
             break;
         }
@@ -498,17 +546,22 @@ async fn main() {
             accumulator -= SNAKE_STEP_SECONDS;
         }
 
+        let frame_time = get_frame_time().max(0.000_001);
+        let instant_fps = 1.0 / frame_time;
+        smoothed_fps = smoothed_fps * 0.92 + instant_fps * 0.08;
+        let step_progress = if game.over {
+            0.0
+        } else {
+            (accumulator / SNAKE_STEP_SECONDS).clamp(0.0, 1.0)
+        };
+
         let layout = board_layout();
         draw_background();
         draw_board(&layout);
-        draw_hud(&game, &layout);
-        draw_game(&game, &layout);
+        draw_hud(&game, &layout, smoothed_fps);
+        draw_game(&game, &layout, step_progress);
         draw_overlay(&game, &layout);
 
-        let elapsed = get_time() - frame_start;
-        if elapsed < TARGET_FRAME_SECONDS {
-            thread::sleep(Duration::from_secs_f64(TARGET_FRAME_SECONDS - elapsed));
-        }
         next_frame().await;
     }
 }
