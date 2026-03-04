@@ -3,8 +3,10 @@
 A pastel-themed Snake game written in Rust with `macroquad`, now featuring:
 
 - Pause + 3-second resume countdown
-- Persistent per-mode/grid high scores
+- Persistent settings + per-mode/grid high scores
 - Smooth speed ramp with configurable base speed
+- Smooth movement interpolation + buffered turn input
+- Adaptive board layout for resizable windows
 - Modes: Classic, Wrap, Zen (no-death overlap)
 - In-game settings overlay
 - Run summary stats on game over
@@ -28,6 +30,7 @@ cargo run --release
 - Move: Arrow keys or `W`, `A`, `S`, `D`
 - Pause / unpause: `P`
 - Open/close settings: `Tab`
+- Settings navigation: `Up`/`Down` (field), `Left`/`Right` (change value)
 - Apply pending mode/grid changes in settings: `Enter`
 - Toggle theme: `M`
 - Toggle FPS overlay: `F`
@@ -68,7 +71,16 @@ Expected files under `assets/audio/`:
 - `resume.wav`
 - `bgm.ogg`
 
+Supported BGM fallback:
+
+- `bgm.wav` (used automatically if `bgm.ogg` is missing or fails to load)
+
 Missing or invalid audio files are non-fatal: gameplay continues without those sounds.
+
+## Credits
+
+Audio source and license details are documented in [CREDITS.md](CREDITS.md).
+The loader also checks paths near the executable, so release builds can still find assets when run outside the repo root.
 
 ## Useful commands
 

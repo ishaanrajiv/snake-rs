@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use macroquad::audio::{PlaySoundParams, Sound, load_sound, play_sound, set_sound_volume};
 
 pub struct AudioManager {
@@ -11,11 +13,13 @@ pub struct AudioManager {
 
 impl AudioManager {
     pub async fn load(asset_dir: &str) -> Self {
-        let eat = load_optional_sound(&format!("{asset_dir}/eat.wav")).await;
-        let death = load_optional_sound(&format!("{asset_dir}/death.wav")).await;
-        let pause = load_optional_sound(&format!("{asset_dir}/pause.wav")).await;
-        let resume = load_optional_sound(&format!("{asset_dir}/resume.wav")).await;
-        let bgm = load_optional_sound(&format!("{asset_dir}/bgm.ogg")).await;
+        let candidate_dirs = candidate_asset_dirs(asset_dir);
+
+        let eat = load_optional_sound(&candidate_dirs, &["eat.wav"]).await;
+        let death = load_optional_sound(&candidate_dirs, &["death.wav"]).await;
+        let pause = load_optional_sound(&candidate_dirs, &["pause.wav"]).await;
+        let resume = load_optional_sound(&candidate_dirs, &["resume.wav"]).await;
+        let bgm = load_optional_sound(&candidate_dirs, &["bgm.ogg", "bgm.wav"]).await;
         Self {
             eat,
             death,
@@ -86,12 +90,43 @@ impl AudioManager {
     }
 }
 
-async fn load_optional_sound(path: &str) -> Option<Sound> {
-    match load_sound(path).await {
-        Ok(sound) => Some(sound),
-        Err(err) => {
-            eprintln!("warning: failed to load sound at {path}: {err}");
-            None
+fn candidate_asset_dirs(asset_dir: &str) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    dirs.push(PathBuf::from(asset_dir));
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            dirs.push(exe_dir.join(asset_dir));
+            dirs.push(exe_dir.join("..").join(asset_dir));
+            dirs.push(exe_dir.join("..").join("..").join(asset_dir));
         }
     }
+
+    dirs
+}
+
+async fn load_optional_sound(candidate_dirs: &[PathBuf], names: &[&str]) -> Option<Sound> {
+    for dir in candidate_dirs {
+        for name in names {
+            let path = dir.join(name);
+            if !path.is_file() {
+                continue;
+            }
+
+            let path_str = path_to_string(&path);
+            match load_sound(&path_str).await {
+                Ok(sound) => return Some(sound),
+                Err(err) => {
+                    eprintln!("warning: failed to load sound at {}: {err}", path.display());
+                }
+            }
+        }
+    }
+
+    eprintln!("warning: missing sound asset(s): {}", names.join(" or "));
+    None
+}
+
+fn path_to_string(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
 }
