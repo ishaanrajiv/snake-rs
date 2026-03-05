@@ -25,6 +25,34 @@ Release build:
 cargo run --release
 ```
 
+## Web build (WASM)
+
+Build the web bundle locally:
+
+```bash
+bash scripts/build-web.sh
+```
+
+This creates `dist/` with:
+
+- `index.html`
+- `gl.js`
+- `snake-rs.wasm`
+- `assets/`
+
+## GitHub + Vercel project flow
+
+Use this for proper continuous deployments (not one-off CLI deploys):
+
+1. Push this repo to GitHub (`main` branch).
+2. In Vercel, import the GitHub repo as a new project.
+3. Keep defaults from `vercel.json`:
+   - Build command: `bash scripts/build-web.sh`
+   - Output directory: `dist`
+4. Vercel will auto-deploy:
+   - Preview deployments for PRs
+   - Production deployments for merges to `main`
+
 ## Controls
 
 - Move: Arrow keys or `W`, `A`, `S`, `D`
