@@ -36,7 +36,7 @@ bash scripts/build-web.sh
 This creates `dist/` with:
 
 - `index.html`
-- `gl.js`
+- `mq_js_bundle.js`
 - `snake-rs.wasm`
 - `assets/`
 

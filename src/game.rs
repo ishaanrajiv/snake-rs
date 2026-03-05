@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 
-use ::rand::Rng;
 use serde::{Deserialize, Serialize};
 
 pub const COMBO_WINDOW_SECONDS: f64 = 2.5;
@@ -365,11 +364,10 @@ impl Game {
     }
 
     fn spawn_food(&self) -> Point {
-        let mut rng = ::rand::thread_rng();
         loop {
             let point = Point {
-                x: rng.gen_range(0..self.config.grid_width),
-                y: rng.gen_range(0..self.config.grid_height),
+                x: quad_rand::gen_range(0, self.config.grid_width),
+                y: quad_rand::gen_range(0, self.config.grid_height),
             };
             if !self.snake.contains(&point) {
                 return point;

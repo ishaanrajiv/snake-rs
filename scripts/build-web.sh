@@ -7,6 +7,7 @@ TARGET="wasm32-unknown-unknown"
 WASM_NAME="snake-rs.wasm"
 WASM_PATH="$ROOT_DIR/target/$TARGET/release/$WASM_NAME"
 ALT_WASM_PATH="$ROOT_DIR/target/$TARGET/release/snake_rs.wasm"
+CARGO_SRC_DIR="${CARGO_HOME:-$HOME/.cargo}/registry/src"
 
 if command -v rustup >/dev/null 2>&1; then
   rustup target add "$TARGET" >/dev/null
@@ -27,7 +28,14 @@ rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
 cp "$WASM_PATH" "$DIST_DIR/$WASM_NAME"
-cp "$ROOT_DIR/vendor/miniquad/js/gl.js" "$DIST_DIR/gl.js"
+
+MQ_BUNDLE_PATH="$(find "$CARGO_SRC_DIR" -path "*/macroquad-*/js/mq_js_bundle.js" 2>/dev/null | sort | tail -n1)"
+if [[ -z "${MQ_BUNDLE_PATH:-}" || ! -f "$MQ_BUNDLE_PATH" ]]; then
+  echo "macroquad JS bundle not found (mq_js_bundle.js)" >&2
+  exit 1
+fi
+cp "$MQ_BUNDLE_PATH" "$DIST_DIR/mq_js_bundle.js"
+
 cp -R "$ROOT_DIR/assets" "$DIST_DIR/assets"
 cp "$ROOT_DIR/web/index.html" "$DIST_DIR/index.html"
 
