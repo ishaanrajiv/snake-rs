@@ -38,5 +38,6 @@ cp "$MQ_BUNDLE_PATH" "$DIST_DIR/mq_js_bundle.js"
 
 cp -R "$ROOT_DIR/assets" "$DIST_DIR/assets"
 cp "$ROOT_DIR/web/index.html" "$DIST_DIR/index.html"
+cp "$ROOT_DIR/web/favicon.svg" "$DIST_DIR/favicon.svg"
 
 echo "Web bundle ready at $DIST_DIR"
