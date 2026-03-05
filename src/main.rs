@@ -15,7 +15,9 @@ use crate::settings::{
 
 const PERF_SAMPLE_SECONDS: f32 = 1.0;
 const RESUME_COUNTDOWN_SECONDS: f32 = 3.0;
+#[cfg(not(target_arch = "wasm32"))]
 const TARGET_RENDER_FPS: f64 = 300.0;
+#[cfg(not(target_arch = "wasm32"))]
 const TARGET_FRAME_SECONDS: f64 = 1.0 / TARGET_RENDER_FPS;
 
 #[derive(Clone, Copy)]
